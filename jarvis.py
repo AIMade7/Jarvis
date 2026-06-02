@@ -16,16 +16,19 @@ from datetime import datetime
 import anthropic
 from dotenv import load_dotenv
 
-load_dotenv()  # loads ANTHROPIC_API_KEY from .env file
+load_dotenv(override=True)  # loads ANTHROPIC_API_KEY from .env, overriding any empty/stale env var
 
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 client = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY from environment
 MODEL = "claude-opus-4-8"
+USER_NAME = "AI"  # the user likes to be addressed by this name
+VOICE_INPUT_DEVICE = "Yeti"  # record from this microphone (partial name match); "" = Windows default
 
 SYSTEM_PROMPT = (
     "You are Jarvis, an intelligent Windows system assistant. "
+    f"The user's name is {USER_NAME} — address them as {USER_NAME} naturally (greetings, sign-offs, etc.). "
     "You have tools to fetch real-time data about processes, open windows, and system stats. "
     "Answer questions naturally and concisely. Format numbers neatly (e.g. '556 MB', '12%'). "
     "Do not dump raw data — summarise it helpfully."
@@ -319,11 +322,26 @@ def _ask_jarvis(messages: list[dict], voice_mode: bool) -> str:
 SAMPLE_RATE = 16000
 CHANNELS = 1
 
-def _record_audio(seconds: float) -> np.ndarray:
+def _record_audio(seconds: float, device=None) -> np.ndarray:
     audio = sd.rec(int(seconds * SAMPLE_RATE), samplerate=SAMPLE_RATE,
-                   channels=CHANNELS, dtype='int16')
+                   channels=CHANNELS, dtype='int16', device=device)
     sd.wait()
     return audio
+
+
+def _find_input_device(name_fragment: str):
+    """Return the index of an input-capable device whose name contains
+    name_fragment (case-insensitive), preferring the MME host API. None if not found."""
+    try:
+        hostapis = sd.query_hostapis()
+        matches = [(i, d) for i, d in enumerate(sd.query_devices())
+                   if d['max_input_channels'] > 0 and name_fragment.lower() in d['name'].lower()]
+        for i, d in matches:
+            if 'MME' in hostapis[d['hostapi']]['name']:
+                return i
+        return matches[0][0] if matches else None
+    except Exception:
+        return None
 
 
 def _audio_to_wav_bytes(audio: np.ndarray) -> bytes:
@@ -349,6 +367,12 @@ def _transcribe(audio: np.ndarray) -> str | None:
 def _speak(engine: pyttsx3.Engine, text: str):
     engine.say(text)
     engine.runAndWait()
+
+
+def _say(engine: pyttsx3.Engine, text: str):
+    """Print what Jarvis says as an on-screen subtitle, then speak it aloud."""
+    print(f"Jarvis: {text}")
+    _speak(engine, text)
 
 
 # ── Chat loop (text) ─────────────────────────────────────────────────────────
@@ -410,8 +434,13 @@ def voice_chat():
     engine = pyttsx3.init()
     engine.setProperty('rate', 175)
 
-    print("\nVoice mode active. Say 'Hey Jarvis' to wake me up. Press Ctrl+C to quit.\n")
-    _speak(engine, "Voice mode active. Say Hey Jarvis to give me a command.")
+    mic = _find_input_device(VOICE_INPUT_DEVICE) if VOICE_INPUT_DEVICE else None
+    if VOICE_INPUT_DEVICE and mic is None:
+        print(f"(Note: mic '{VOICE_INPUT_DEVICE}' not found — using the default input device.)")
+
+    print()
+    _say(engine, f"Voice mode active, {USER_NAME}. Say Hey Jarvis to give me a command.")
+    print("(Say 'Hey Jarvis' to wake me up. Say 'Hey Jarvis end' or press Ctrl+C to quit.)\n")
 
     messages: list[dict] = []
 
@@ -419,7 +448,7 @@ def voice_chat():
         try:
             # Listen for wake word in 3-second chunks
             print("Listening...", end="\r")
-            audio = _record_audio(3)
+            audio = _record_audio(3, device=mic)
             text = _transcribe(audio)
 
             if not text:
@@ -437,28 +466,26 @@ def voice_chat():
                 command = text_lower
             else:
                 # Wake word only — listen again for the actual command
-                print("Jarvis: Yes?        ")
-                _speak(engine, "Yes?")
-                audio = _record_audio(6)
+                _say(engine, "Yes?")
+                audio = _record_audio(6, device=mic)
                 command = _transcribe(audio)
                 if not command:
                     continue
 
             print(f"\nYou: {command}")
 
-            if command.lower() in ("stop", "exit", "quit", "goodbye", "bye"):
-                _speak(engine, "Goodbye!")
+            if command.lower().strip(" .,!?'\"") in ("stop", "exit", "quit", "goodbye", "bye", "end", "and"):  # "and" = common speech-to-text mishearing of "end"
+                _say(engine, f"Ending session. Goodbye, {USER_NAME}!")
                 break
 
             messages.append({"role": "user", "content": command})
             reply = _ask_jarvis(messages, voice_mode=True)
 
-            print(f"Jarvis: {reply}\n")
-            _speak(engine, reply)
+            _say(engine, reply)
 
         except KeyboardInterrupt:
-            print("\nJarvis: Signing off.")
-            _speak(engine, "Signing off.")
+            print()
+            _say(engine, "Signing off.")
             break
 
 
