@@ -2,17 +2,15 @@ import sys
 import os
 import glob
 import json
-import io
-import wave
 import subprocess
 import webbrowser
 import numpy as np
 import sounddevice as sd
-import speech_recognition as sr
 import pyttsx3
 import psutil
 import pygetwindow as gw
 from datetime import datetime
+from faster_whisper import WhisperModel
 import anthropic
 from dotenv import load_dotenv
 
@@ -148,9 +146,46 @@ def _open_app(app_name: str) -> str:
         except PermissionError:
             continue
 
+    # If app has a web version, open that instead
+    browser_fallbacks = {
+        "twitch": "https://www.twitch.tv",
+        "netflix": "https://www.netflix.com",
+        "hulu": "https://www.hulu.com",
+        "youtube": "https://www.youtube.com",
+        "prime": "https://www.amazon.com/prime-video",
+        "amazon prime": "https://www.amazon.com/prime-video",
+    }
+    fallback = browser_fallbacks.get(app_name.lower())
+    if fallback:
+        webbrowser.open(fallback)
+        return f"Opened {app_name} in browser (app not found on this PC)"
+
     # Last resort — Windows shell
     subprocess.Popen(f'start "" "{exe}"', shell=True)
     return f"Tried to open {app_name} — if nothing happened it may not be installed"
+
+
+def _open_stream(streamer: str) -> str:
+    url = f"https://www.twitch.tv/{streamer.lower().replace(' ', '')}"
+    webbrowser.open(url)
+    return f"Opened {streamer}'s stream on Twitch"
+
+
+def _play_youtube(query: str) -> str:
+    import yt_dlp
+    opts = {"quiet": True, "no_warnings": True, "extract_flat": True}
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(f"ytsearch1:{query}", download=False)
+            video = info["entries"][0]
+            url = f"https://www.youtube.com/watch?v={video['id']}"
+            title = video.get("title", query)
+            webbrowser.open(url)
+            return f"Playing: {title}"
+    except Exception:
+        import urllib.parse
+        webbrowser.open(f"https://www.youtube.com/results?search_query={urllib.parse.quote(query)}")
+        return f"Opened YouTube search for: {query}"
 
 
 def _close_window(title: str) -> str:
@@ -216,6 +251,34 @@ TOOLS = [
         "input_schema": {"type": "object", "properties": {}},
     },
     {
+        "name": "open_stream",
+        "description": "Open a Twitch stream for a specific streamer. Call this when the user says 'open [name]'s stream' or 'watch [name] on Twitch'.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "streamer": {
+                    "type": "string",
+                    "description": "The streamer's Twitch username or name, e.g. 'ninja', 'pokimane'.",
+                },
+            },
+            "required": ["streamer"],
+        },
+    },
+    {
+        "name": "play_youtube",
+        "description": "Search for and open a YouTube video. Call this when the user says 'play [video] on YouTube' or 'search YouTube for [topic]'.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "The video title or search query, e.g. 'lofi hip hop' or 'how to make pasta'.",
+                },
+            },
+            "required": ["query"],
+        },
+    },
+    {
         "name": "open_app",
         "description": "Open an installed application on the computer. Call this when the user asks to open or launch an app like Discord, Spotify, Steam, etc.",
         "input_schema": {
@@ -269,7 +332,11 @@ TOOLS = [
 
 
 def _execute_tool(name: str, tool_input: dict) -> str:
-    if name == "open_app":
+    if name == "open_stream":
+        data = _open_stream(tool_input["streamer"])
+    elif name == "play_youtube":
+        data = _play_youtube(tool_input["query"])
+    elif name == "open_app":
         data = _open_app(tool_input["app_name"])
     elif name == "close_window":
         data = _close_window(tool_input["title"])
@@ -321,12 +388,48 @@ def _ask_jarvis(messages: list[dict], voice_mode: bool) -> str:
 
 SAMPLE_RATE = 16000
 CHANNELS = 1
+CHUNK_MS = 80          # process audio in 80ms chunks
+SILENCE_AFTER_MS = 900 # stop after 900ms of silence once speech began
 
-def _record_audio(seconds: float, device=None) -> np.ndarray:
+
+def _record_fixed(seconds: float, device=None) -> np.ndarray:
+    """Record a fixed number of seconds (used for wake-word listening)."""
     audio = sd.rec(int(seconds * SAMPLE_RATE), samplerate=SAMPLE_RATE,
                    channels=CHANNELS, dtype='int16', device=device)
     sd.wait()
     return audio
+
+
+def _record_dynamic(noise_floor: float, device=None, max_seconds: float = 12.0) -> np.ndarray:
+    """Record until the user stops speaking. Stops after SILENCE_AFTER_MS of quiet."""
+    chunk = int(SAMPLE_RATE * CHUNK_MS / 1000)
+    threshold = max(noise_floor * 2.5, 40)    # speak above 2.5× background noise
+    silence_needed = int(SILENCE_AFTER_MS / CHUNK_MS)
+    min_speech_chunks = int(200 / CHUNK_MS)   # need at least 200ms of speech
+
+    chunks, silent, voiced = [], 0, 0
+    with sd.InputStream(samplerate=SAMPLE_RATE, channels=CHANNELS,
+                        dtype='int16', blocksize=chunk, device=device) as stream:
+        for _ in range(int(max_seconds * 1000 / CHUNK_MS)):
+            data, _ = stream.read(chunk)
+            chunks.append(data.copy())
+            energy = float(np.abs(data).mean())
+            if energy > threshold:
+                voiced += 1
+                silent = 0
+            elif voiced >= min_speech_chunks:
+                silent += 1
+                if silent >= silence_needed:
+                    break
+    return np.concatenate(chunks)
+
+
+def _calibrate_noise(device=None, seconds: float = 0.8) -> float:
+    """Measure background noise level so the VAD threshold adapts to the room."""
+    audio = sd.rec(int(seconds * SAMPLE_RATE), samplerate=SAMPLE_RATE,
+                   channels=CHANNELS, dtype='int16', device=device)
+    sd.wait()
+    return float(np.abs(audio).mean())
 
 
 def _find_input_device(name_fragment: str):
@@ -344,24 +447,22 @@ def _find_input_device(name_fragment: str):
         return None
 
 
-def _audio_to_wav_bytes(audio: np.ndarray) -> bytes:
-    buf = io.BytesIO()
-    with wave.open(buf, 'wb') as wf:
-        wf.setnchannels(CHANNELS)
-        wf.setsampwidth(2)
-        wf.setframerate(SAMPLE_RATE)
-        wf.writeframes(audio.tobytes())
-    return buf.getvalue()
+_whisper: WhisperModel | None = None
+
+def _get_whisper() -> WhisperModel:
+    global _whisper
+    if _whisper is None:
+        print("Loading Whisper model (first run only, ~145 MB)...")
+        _whisper = WhisperModel("small", device="cpu", compute_type="int8")
+        print("Whisper ready.\n")
+    return _whisper
 
 
 def _transcribe(audio: np.ndarray) -> str | None:
-    recognizer = sr.Recognizer()
-    wav_bytes = _audio_to_wav_bytes(audio)
-    audio_data = sr.AudioData(wav_bytes, SAMPLE_RATE, 2)
-    try:
-        return recognizer.recognize_google(audio_data)
-    except (sr.UnknownValueError, sr.RequestError):
-        return None
+    audio_float = audio.flatten().astype(np.float32) / 32768.0
+    segments, _ = _get_whisper().transcribe(audio_float, language="en", beam_size=5)
+    text = " ".join(s.text for s in segments).strip()
+    return text if text else None
 
 
 def _speak(engine: pyttsx3.Engine, text: str):
@@ -438,7 +539,10 @@ def voice_chat():
     if VOICE_INPUT_DEVICE and mic is None:
         print(f"(Note: mic '{VOICE_INPUT_DEVICE}' not found — using the default input device.)")
 
-    print()
+    print("Calibrating noise floor, please stay quiet...")
+    noise_floor = _calibrate_noise(device=mic)
+    print(f"Noise floor: {noise_floor:.0f}  |  Speech threshold: {max(noise_floor * 2.5, 40):.0f}\n")
+
     _say(engine, f"Voice mode active, {USER_NAME}. Say Hey Jarvis to give me a command.")
     print("(Say 'Hey Jarvis' to wake me up. Say 'Hey Jarvis end' or press Ctrl+C to quit.)\n")
 
@@ -446,9 +550,9 @@ def voice_chat():
 
     while True:
         try:
-            # Listen for wake word in 3-second chunks
+            # Listen dynamically — waits for you to finish speaking
             print("Listening...", end="\r")
-            audio = _record_audio(3, device=mic)
+            audio = _record_dynamic(noise_floor, device=mic, max_seconds=15.0)
             text = _transcribe(audio)
 
             if not text:
@@ -458,16 +562,16 @@ def voice_chat():
             if "jarvis" not in text_lower:
                 continue
 
-            # Strip wake phrase and use anything after it as the command
+            # Strip wake phrase — use anything said after it as the command
             for wake in ("hey jarvis", "ok jarvis", "jarvis"):
                 text_lower = text_lower.replace(wake, "").strip()
 
             if text_lower:
                 command = text_lower
             else:
-                # Wake word only — listen again for the actual command
+                # Wake word only — listen dynamically until they finish speaking
                 _say(engine, "Yes?")
-                audio = _record_audio(6, device=mic)
+                audio = _record_dynamic(noise_floor, device=mic)
                 command = _transcribe(audio)
                 if not command:
                     continue
