@@ -16,6 +16,11 @@ from dotenv import load_dotenv
 
 load_dotenv(override=True)  # loads ANTHROPIC_API_KEY from .env, overriding any empty/stale env var
 
+# A blank ANTHROPIC_AUTH_TOKEN makes the SDK send "Authorization: Bearer " (illegal empty header)
+# instead of using the API key. Drop it if empty so plain x-api-key auth is used.
+if not os.environ.get("ANTHROPIC_AUTH_TOKEN"):
+    os.environ.pop("ANTHROPIC_AUTH_TOKEN", None)
+
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
@@ -25,11 +30,14 @@ USER_NAME = "AI"  # the user likes to be addressed by this name
 VOICE_INPUT_DEVICE = "Yeti"  # record from this microphone (partial name match); "" = Windows default
 
 SYSTEM_PROMPT = (
-    "You are Jarvis, an intelligent Windows system assistant. "
+    "You are Jarvis, a friendly and knowledgeable AI assistant (powered by Claude). "
     f"The user's name is {USER_NAME} — address them as {USER_NAME} naturally (greetings, sign-offs, etc.). "
-    "You have tools to fetch real-time data about processes, open windows, and system stats. "
-    "Answer questions naturally and concisely. Format numbers neatly (e.g. '556 MB', '12%'). "
-    "Do not dump raw data — summarise it helpfully."
+    "You can chat about anything and answer general questions — explanations, advice, ideas, coding, "
+    "writing, math, trivia, recommendations — exactly like a general-purpose AI assistant. "
+    "You ALSO have tools to fetch real-time data about this Windows PC (processes, open windows, system "
+    "stats) and to open apps and websites. Use those tools only when the user asks about their computer "
+    "or asks you to open something; for everything else, just answer conversationally. "
+    "Format numbers neatly (e.g. '556 MB', '12%') and don't dump raw data — summarise it helpfully."
 )
 
 # ── System data functions ────────────────────────────────────────────────────

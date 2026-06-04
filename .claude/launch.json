@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "jarvis-website",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "-p", "3000", "website"],
+      "port": 3000
+    }
+  ]
+}

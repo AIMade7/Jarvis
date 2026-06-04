@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JARVIS — AI Voice Assistant for Windows</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;800;900&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:'Space Grotesk',sans-serif;background:#000000;color:#f0e0e0;overflow-x:hidden;cursor:none}
+
+:root{
+  --c:#ff1f1f;--v:#990000;--p:#ff5555;
+  --cd:rgba(255,31,31,.12);--vd:rgba(153,0,0,.12);
+  --bg:#000000;--bg2:#0a0000;
+  --txt:#f0e0e0;--muted:#6b4040;
+  --border:rgba(255,31,31,.18);--card:rgba(255,31,31,.03);
+  --gc:linear-gradient(135deg,#ff4444,#cc0000,#ffffff);
+}
+
+/* CURSOR */
+#cr{position:fixed;width:44px;height:44px;border:1.5px solid var(--c);border-radius:50%;pointer-events:none;z-index:9999;transform:translate(-50%,-50%);transition:width .25s,height .25s,border-color .25s,opacity .3s;mix-blend-mode:normal}
+#cd{position:fixed;width:6px;height:6px;background:var(--c);border-radius:50%;pointer-events:none;z-index:9999;transform:translate(-50%,-50%);box-shadow:0 0 12px var(--c)}
+#cr.h{width:60px;height:60px;border-color:var(--v)}
+
+/* PRELOADER */
+#preloader{position:fixed;inset:0;background:var(--bg);z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;transition:opacity .6s}
+#preloader.done{opacity:0;pointer-events:none}
+.pl-logo{font-family:'Orbitron',sans-serif;font-size:2.5rem;font-weight:900;color:var(--c);letter-spacing:.3em;text-shadow:0 0 40px var(--c);animation:pulse 1s ease-in-out infinite alternate}
+.pl-bar-wrap{width:220px;height:2px;background:rgba(255,31,31,.08);border-radius:2px;overflow:hidden}
+.pl-bar{height:100%;background:linear-gradient(90deg,var(--v),var(--c));animation:loadbar 1.8s ease forwards}
+@keyframes loadbar{from{width:0}to{width:100%}}
+@keyframes pulse{from{opacity:.4}to{opacity:1}}
+
+/* NAV */
+nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:22px 80px;display:flex;align-items:center;justify-content:space-between;transition:all .4s}
+nav.sc{background:rgba(0,2,18,.88);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:14px 80px}
+.nl{font-family:'Orbitron',sans-serif;font-size:1.3rem;font-weight:900;color:var(--c);letter-spacing:.2em;text-decoration:none;text-shadow:0 0 30px rgba(255,31,31,.5)}
+.nlinks{display:flex;gap:38px;list-style:none}
+.nlinks a{color:var(--txt);text-decoration:none;font-size:.82rem;font-weight:500;letter-spacing:.1em;text-transform:uppercase;transition:color .3s;position:relative}
+.nlinks a::after{content:'';position:absolute;bottom:-4px;left:0;right:0;height:1px;background:var(--c);transform:scaleX(0);transition:transform .3s}
+.nlinks a:hover{color:var(--c)}
+.nlinks a:hover::after{transform:scaleX(1)}
+.ncta{background:linear-gradient(135deg,var(--v),var(--c));color:#fff;padding:10px 28px;border-radius:30px;font-weight:700;font-size:.82rem;letter-spacing:.05em;text-decoration:none;transition:transform .3s,box-shadow .3s;position:relative;overflow:hidden}
+.ncta:hover{transform:translateY(-2px);box-shadow:0 0 40px rgba(255,31,31,.4)}
+
+/* HERO */
+#hero{position:relative;min-height:100vh;display:flex;align-items:center;overflow:hidden}
+#pc{position:absolute;inset:0;z-index:0}
+.hgrid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,31,31,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,31,31,.035) 1px,transparent 1px);background-size:80px 80px;mask-image:radial-gradient(ellipse at center,black 0%,transparent 70%);-webkit-mask-image:radial-gradient(ellipse at center,black 0%,transparent 70%)}
+.hscan{position:absolute;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(255,31,31,.4),transparent);animation:scanline 5s linear infinite;z-index:0}
+@keyframes scanline{from{top:0}to{top:100%}}
+.hi{position:relative;z-index:1;max-width:1400px;margin:0 auto;padding:130px 80px 80px;display:grid;grid-template-columns:1fr 1fr;gap:80px;align-items:center}
+.hbadge{display:inline-flex;align-items:center;gap:9px;background:var(--cd);border:1px solid rgba(255,31,31,.3);padding:6px 18px;border-radius:30px;font-size:.73rem;font-weight:600;letter-spacing:.12em;color:var(--c);text-transform:uppercase;margin-bottom:28px;animation:fadeup .6s ease both}
+.hbadge .dot{width:6px;height:6px;background:var(--c);border-radius:50%;box-shadow:0 0 10px var(--c);animation:blink 1.6s ease infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.1}}
+h1.ht{font-family:'Orbitron',sans-serif;font-size:clamp(2.6rem,5vw,5rem);font-weight:900;line-height:1.06;letter-spacing:-.02em;margin-bottom:24px;animation:fadeup .6s .1s ease both}
+.gt{background:var(--gc);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.hsub{font-size:1.08rem;color:var(--muted);line-height:1.75;max-width:500px;margin-bottom:42px;animation:fadeup .6s .2s ease both}
+.hbtns{display:flex;gap:16px;flex-wrap:wrap;animation:fadeup .6s .3s ease both}
+.btn-p{display:inline-flex;align-items:center;gap:10px;background:linear-gradient(135deg,var(--c),var(--v));color:#fff;padding:16px 40px;border-radius:50px;font-weight:700;font-size:.95rem;text-decoration:none;transition:transform .3s,box-shadow .3s;position:relative;overflow:hidden}
+.btn-p::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,var(--v),var(--p));opacity:0;transition:opacity .3s}
+.btn-p:hover{transform:translateY(-3px);box-shadow:0 20px 60px rgba(255,31,31,.4)}
+.btn-p:hover::before{opacity:1}
+.btn-p span,.btn-p i{position:relative;z-index:1}
+.btn-s{display:inline-flex;align-items:center;gap:10px;background:transparent;color:var(--txt);padding:16px 36px;border-radius:50px;border:1px solid var(--border);font-weight:600;font-size:.95rem;text-decoration:none;transition:border-color .3s,color .3s,background .3s;backdrop-filter:blur(10px)}
+.btn-s:hover{border-color:var(--c);color:var(--c);background:var(--cd)}
+
+/* ORB */
+.hv{position:relative;display:flex;align-items:center;justify-content:center;animation:fadein 1s .4s ease both}
+.orb{position:relative;width:480px;height:480px;flex-shrink:0}
+.os{position:absolute;inset:90px;border-radius:50%;background:radial-gradient(circle at 28% 28%,#660000,#1a0000 55%,#000);box-shadow:0 0 90px rgba(255,31,31,.6),0 0 180px rgba(255,31,31,.2),0 0 260px rgba(153,0,0,.2),inset 0 0 70px rgba(255,31,31,.1)}
+.os::before{content:'';position:absolute;width:38%;height:38%;background:radial-gradient(circle,rgba(255,255,255,.28),transparent);top:14%;left:14%;border-radius:50%;filter:blur(10px)}
+.os::after{content:'';position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,transparent 40%,rgba(255,31,31,.08) 50%,transparent 60%);animation:spin 8s linear infinite}
+.ring{position:absolute;inset:0;border-radius:50%;transform-style:preserve-3d}
+.r1{border:1px solid rgba(255,31,31,.35);transform:rotateX(70deg);animation:spin 20s linear infinite}
+.r2{inset:24px;border:1px solid rgba(153,0,0,.35);transform:rotateX(70deg) rotateZ(65deg);animation:spin 13s linear infinite reverse}
+.r3{inset:48px;border:1px solid rgba(255,85,85,.2);transform:rotateX(70deg) rotateZ(130deg);animation:spin 25s linear infinite}
+.rdot{position:absolute;width:10px;height:10px;border-radius:50%;top:50%;left:0;transform:translateY(-50%) translateX(-50%)}
+.r1 .rdot{background:var(--c);box-shadow:0 0 20px var(--c),0 0 40px rgba(255,31,31,.5)}
+.r2 .rdot{background:var(--v);box-shadow:0 0 20px var(--v);top:0;left:50%;transform:translateX(-50%) translateY(-50%)}
+.r3 .rdot{background:var(--p);box-shadow:0 0 20px var(--p);top:auto;bottom:50%;right:0;left:auto;transform:translateY(50%) translateX(50%)}
+@keyframes spin{from{transform:rotateX(70deg) rotateZ(0)}to{transform:rotateX(70deg) rotateZ(360deg)}}
+.r2{animation:spin2 13s linear infinite reverse}
+@keyframes spin2{from{transform:rotateX(70deg) rotateZ(65deg)}to{transform:rotateX(70deg) rotateZ(425deg)}}
+.r3{animation:spin3 25s linear infinite}
+@keyframes spin3{from{transform:rotateX(70deg) rotateZ(130deg)}to{transform:rotateX(70deg) rotateZ(490deg)}}
+
+.fp{position:absolute;background:rgba(18,0,0,.92);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,31,31,.22);border-radius:50px;padding:10px 18px;font-size:.8rem;font-weight:600;color:var(--txt);display:flex;align-items:center;gap:9px;white-space:nowrap;animation:float 4s ease-in-out infinite}
+.fp i{color:var(--c)}
+.fp1{top:18%;right:-55px;animation-delay:0s}
+.fp2{top:54%;right:-78px;animation-delay:1.4s}
+.fp3{bottom:22%;left:-60px;animation-delay:.8s}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+
+.scroll-ind{position:absolute;bottom:36px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:10px;z-index:1;animation:fadeup .6s 1s ease both}
+.scroll-ind span{font-size:.68rem;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
+.sl{width:1px;height:50px;background:linear-gradient(to bottom,var(--c),transparent);animation:sdrop 2s ease infinite}
+@keyframes sdrop{0%,100%{opacity:1;transform:scaleY(1)}50%{opacity:.2;transform:scaleY(.5)}}
+
+/* STATS BAR */
+.sb{border-top:1px solid var(--border);border-bottom:1px solid var(--border);background:rgba(255,31,31,.015);position:relative;z-index:1}
+.sbi{max-width:1400px;margin:0 auto;padding:0 80px;display:grid;grid-template-columns:repeat(4,1fr)}
+.si{padding:30px 20px;text-align:center;border-right:1px solid var(--border)}
+.si:last-child{border-right:none}
+.sn{font-family:'Orbitron',sans-serif;font-size:1.9rem;font-weight:700;color:var(--c);text-shadow:0 0 20px rgba(255,31,31,.5);display:block}
+.sl2{font-size:.76rem;color:var(--muted);text-transform:uppercase;letter-spacing:.12em;margin-top:6px;display:block}
+
+/* SHARED SECTION */
+section{position:relative;padding:120px 0}
+.si2{max-width:1400px;margin:0 auto;padding:0 80px}
+.slabel{font-size:.72rem;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:var(--c);margin-bottom:14px;display:block}
+.stitle{font-family:'Orbitron',sans-serif;font-size:clamp(1.7rem,3vw,2.75rem);font-weight:800;line-height:1.2;margin-bottom:18px}
+.ssub{font-size:.98rem;color:var(--muted);line-height:1.75;max-width:560px}
+
+/* FEATURES */
+#features{background:radial-gradient(ellipse at 50% 0%,rgba(153,0,0,.07) 0%,transparent 60%)}
+.fh{text-align:center;margin-bottom:76px}
+.fh .ssub{margin:0 auto}
+.fg{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+.fc{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:34px 30px;position:relative;overflow:hidden;transition:transform .4s,border-color .4s;cursor:default}
+.fc::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 50% 0%,var(--cd),transparent 60%);opacity:0;transition:opacity .4s}
+.fc:hover{transform:translateY(-8px);border-color:rgba(255,31,31,.4)}
+.fc:hover::before{opacity:1}
+.fc:nth-child(3n+2)::before{background:radial-gradient(circle at 50% 0%,var(--vd),transparent 60%)}
+.fc:nth-child(3n+2):hover{border-color:rgba(153,0,0,.4)}
+.fiw{width:54px;height:54px;background:var(--cd);border:1px solid rgba(255,31,31,.2);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:1.25rem;color:var(--c);margin-bottom:22px;position:relative;z-index:1}
+.fc:nth-child(3n+2) .fiw{background:var(--vd);border-color:rgba(153,0,0,.2);color:var(--v)}
+.ftitle{font-family:'Orbitron',sans-serif;font-size:.95rem;font-weight:700;margin-bottom:12px;position:relative;z-index:1}
+.fdesc{font-size:.87rem;color:var(--muted);line-height:1.72;position:relative;z-index:1}
+
+/* HOW IT WORKS */
+#how{background:radial-gradient(ellipse at 0% 50%,rgba(255,31,31,.04) 0%,transparent 50%)}
+.hw{display:grid;grid-template-columns:repeat(3,1fr);gap:0;margin-top:80px;position:relative}
+.hw::before{content:'';position:absolute;top:39px;left:calc(100%/6);right:calc(100%/6);height:1px;background:linear-gradient(90deg,var(--c),var(--v));opacity:.25;z-index:0}
+.hs{text-align:center;padding:0 36px;position:relative;z-index:1}
+.hn{width:80px;height:80px;border-radius:50%;border:1px solid var(--border);background:var(--bg);display:flex;align-items:center;justify-content:center;margin:0 auto 30px;font-family:'Orbitron',sans-serif;font-size:1.3rem;font-weight:900;color:var(--c);box-shadow:0 0 30px rgba(255,31,31,.15)}
+.htitle{font-family:'Orbitron',sans-serif;font-size:1.05rem;font-weight:700;margin-bottom:14px}
+.hdesc{font-size:.88rem;color:var(--muted);line-height:1.72}
+
+/* DEMO */
+#demo{background:radial-gradient(ellipse at 100% 50%,rgba(153,0,0,.055) 0%,transparent 50%)}
+.di{max-width:1400px;margin:0 auto;padding:0 80px;display:grid;grid-template-columns:1fr 1fr;gap:76px;align-items:center}
+.dt{background:#0e0000;border:1px solid var(--border);border-radius:20px;overflow:hidden;box-shadow:0 0 60px rgba(255,31,31,.08),0 40px 80px rgba(0,0,0,.5)}
+.tb{background:rgba(255,31,31,.04);border-bottom:1px solid var(--border);padding:14px 20px;display:flex;align-items:center;gap:8px}
+.td{width:12px;height:12px;border-radius:50%}
+.td:nth-child(1){background:#ff5f57}
+.td:nth-child(2){background:#ffbd2e}
+.td:nth-child(3){background:#28c840}
+.tt{margin-left:12px;font-size:.78rem;color:var(--muted);letter-spacing:.06em}
+.tbody{padding:28px;font-family:'Courier New',monospace;font-size:.85rem;min-height:380px;overflow-y:auto}
+.tl{margin-bottom:10px;line-height:1.65}
+.tp{color:var(--c)}
+.tu{color:#fff}
+.tr{color:rgba(200,208,255,.65)}
+.ta{color:var(--v)}
+.tcur{display:inline-block;width:8px;height:15px;background:var(--c);animation:bcur 1s steps(1) infinite;vertical-align:middle}
+@keyframes bcur{0%,100%{opacity:1}50%{opacity:0}}
+
+.dtags{display:flex;flex-wrap:wrap;gap:10px;margin-top:38px}
+.dtag{background:var(--card);border:1px solid var(--border);border-radius:30px;padding:8px 18px;font-size:.78rem;font-weight:500;color:var(--txt);transition:border-color .3s,color .3s,background .3s;cursor:pointer}
+.dtag:hover,.dtag.act{border-color:var(--c);color:var(--c);background:var(--cd)}
+
+/* PRICING */
+#pricing{background:radial-gradient(ellipse at 50% 100%,rgba(255,31,31,.055) 0%,transparent 50%)}
+.ph{text-align:center;margin-bottom:76px}
+.ph .ssub{margin:0 auto}
+.pg{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;align-items:start}
+.pc{background:var(--card);border:1px solid var(--border);border-radius:24px;padding:40px 34px;position:relative;overflow:hidden;transition:transform .4s,border-color .4s}
+.pc.pop{border-color:var(--c);transform:scale(1.05);background:rgba(255,31,31,.025)}
+.pc.pop::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 50% -20%,rgba(255,31,31,.1),transparent 60%);pointer-events:none}
+.pbadge{position:absolute;top:20px;right:20px;background:linear-gradient(135deg,var(--c),var(--v));color:#fff;padding:4px 14px;border-radius:30px;font-size:.7rem;font-weight:700;letter-spacing:.06em}
+.pname{font-family:'Orbitron',sans-serif;font-size:.8rem;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:18px}
+.pprice{font-family:'Orbitron',sans-serif;font-size:3.2rem;font-weight:900;color:#fff;line-height:1;margin-bottom:6px}
+.pprice sup{font-size:1.4rem;vertical-align:top;margin-top:10px;color:var(--muted)}
+.pper{font-size:.83rem;color:var(--muted);margin-bottom:34px}
+.pfeats{list-style:none;margin-bottom:38px;display:flex;flex-direction:column;gap:14px}
+.pfeats li{display:flex;align-items:center;gap:12px;font-size:.88rem}
+.pfeats li i{color:var(--c);font-size:.78rem}
+.pfeats li.off{color:var(--muted)}
+.pfeats li.off i{color:var(--muted)}
+.pbtn{display:block;text-align:center;padding:15px;border-radius:50px;font-weight:700;font-size:.88rem;text-decoration:none;transition:transform .3s,box-shadow .3s,background .3s;border:1px solid var(--border);color:var(--txt)}
+.pc.pop .pbtn{background:linear-gradient(135deg,var(--c),var(--v));border:none;color:#fff}
+.pbtn:hover{transform:translateY(-2px);box-shadow:0 10px 40px rgba(255,31,31,.3)}
+
+/* TESTIMONIALS */
+#testimonials{overflow:hidden}
+.th{text-align:center;margin-bottom:56px;padding:0 80px}
+.ttrack{display:flex;gap:22px;animation:scroll-t 35s linear infinite;width:max-content}
+.ttrack:hover{animation-play-state:paused}
+.tcard{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:28px 26px;width:330px;flex-shrink:0}
+.tstars{color:#ffb300;font-size:.9rem;margin-bottom:14px;letter-spacing:2px}
+.ttext{font-size:.87rem;color:var(--txt);line-height:1.72;margin-bottom:22px;font-style:italic}
+.tauthor{display:flex;align-items:center;gap:12px}
+.tav{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,var(--c),var(--v));display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.95rem;color:#fff;flex-shrink:0}
+.tname{font-weight:600;font-size:.88rem}
+.trole{font-size:.76rem;color:var(--muted)}
+@keyframes scroll-t{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+
+/* FAQ */
+#faq{background:radial-gradient(ellipse at 50% 50%,rgba(153,0,0,.04) 0%,transparent 60%)}
+.faqin{max-width:880px;margin:0 auto;padding:0 80px}
+.faqh{text-align:center;margin-bottom:56px}
+.faqitem{border:1px solid var(--border);border-radius:16px;margin-bottom:10px;overflow:hidden;background:var(--card);transition:border-color .3s}
+.faqitem.op{border-color:rgba(255,31,31,.38)}
+.faqq{padding:22px 26px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;font-weight:600;font-size:.93rem;gap:16px}
+.faqq .icon{color:var(--c);transition:transform .3s;flex-shrink:0}
+.faqitem.op .faqq .icon{transform:rotate(45deg)}
+.faqa{max-height:0;overflow:hidden;transition:max-height .4s ease}
+.faqitem.op .faqa{max-height:200px}
+.faqai{padding:0 26px 22px;font-size:.88rem;color:var(--muted);line-height:1.75}
+
+/* CTA */
+.ctab{padding:120px 0;position:relative;overflow:hidden;text-align:center}
+.ctab::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(255,31,31,.07) 0%,transparent 60%)}
+.ctabin{position:relative;z-index:1;max-width:700px;margin:0 auto;padding:0 40px}
+.ctab h2{font-family:'Orbitron',sans-serif;font-size:clamp(1.9rem,4vw,3.4rem);font-weight:900;margin-bottom:18px;line-height:1.2}
+.ctab p{font-size:1.05rem;color:var(--muted);margin-bottom:40px}
+.ctab .hbtns{justify-content:center}
+.ctab-line{position:absolute;top:0;left:50%;width:300px;height:1px;background:linear-gradient(90deg,transparent,var(--c),transparent);transform:translateX(-50%)}
+
+/* FOOTER */
+footer{border-top:1px solid var(--border);padding:60px 0 40px}
+.fi{max-width:1400px;margin:0 auto;padding:0 80px;display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:56px}
+.fbrand p{font-size:.86rem;color:var(--muted);line-height:1.72;max-width:270px;margin-top:14px}
+.fcol h4{font-family:'Orbitron',sans-serif;font-size:.72rem;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:20px}
+.fcol ul{list-style:none;display:flex;flex-direction:column;gap:12px}
+.fcol ul a{color:var(--txt);text-decoration:none;font-size:.86rem;transition:color .3s}
+.fcol ul a:hover{color:var(--c)}
+.fbot{max-width:1400px;margin:36px auto 0;padding:22px 80px 0;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:.78rem;color:var(--muted)}
+.fsoc{display:flex;gap:14px}
+.fsoc a{width:34px;height:34px;border:1px solid var(--border);border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--muted);text-decoration:none;transition:border-color .3s,color .3s}
+.fsoc a:hover{border-color:var(--c);color:var(--c)}
+
+/* ANIMATIONS */
+@keyframes fadeup{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+.rev{opacity:0;transform:translateY(36px);transition:opacity .7s ease,transform .7s ease}
+.rev.vis{opacity:1;transform:translateY(0)}
+.rd1{transition-delay:.1s}
+.rd2{transition-delay:.2s}
+.rd3{transition-delay:.3s}
+
+/* RESPONSIVE */
+@media(max-width:1100px){nav,nav.sc{padding:20px 40px}nav.sc{padding:14px 40px}.hi,.di{padding:120px 40px 80px;gap:40px}.si2{padding:0 40px}.sbi{padding:0 40px}.fg{grid-template-columns:repeat(2,1fr)}.orb{width:380px;height:380px}.os{inset:70px}}
+@media(max-width:900px){.hi{grid-template-columns:1fr;text-align:center}.hv{display:none}.hsub{margin:0 auto 40px}.hbtns{justify-content:center}.hw{grid-template-columns:1fr}.hw::before{display:none}.pg{grid-template-columns:1fr}.pc.pop{transform:none}.di{grid-template-columns:1fr}.fi{grid-template-columns:1fr 1fr}.sbi{grid-template-columns:repeat(2,1fr)}.fg{grid-template-columns:1fr}.faqin{padding:0 40px}}
+
+/* HAMBURGER */
+.hbg{display:none;flex-direction:column;justify-content:center;gap:5px;background:none;border:none;cursor:pointer;padding:6px;z-index:1002;flex-shrink:0}
+.hbg span{width:22px;height:2px;background:var(--c);display:block;transition:transform .3s,opacity .3s;border-radius:2px;transform-origin:center}
+.hbg.op span:nth-child(1){transform:translateY(7px) rotate(45deg)}
+.hbg.op span:nth-child(2){opacity:0;transform:scaleX(0)}
+.hbg.op span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
+
+/* MOBILE ≤768px */
+@media(max-width:768px){
+  nav,nav.sc{padding:16px 20px}
+  .hbg{display:flex}
+  .ncta{display:none}
+  .nlinks{display:none;position:fixed;inset:0;background:rgba(0,2,20,.97);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);flex-direction:column;align-items:center;justify-content:center;gap:0;z-index:1001;list-style:none}
+  .nlinks.mob-open{display:flex}
+  .nlinks li{width:100%;text-align:center;border-bottom:1px solid var(--border)}
+  .nlinks li:last-child{border-bottom:none}
+  .nlinks a{display:block;padding:20px 0;font-size:1.1rem;letter-spacing:.08em}
+  .nlinks a::after{display:none}
+  section{padding:70px 0}
+  .si2{padding:0 20px}
+  .hi{padding:100px 20px 60px;gap:20px}
+  h1.ht{font-size:clamp(1.9rem,8vw,2.6rem)}
+  .hsub{font-size:.94rem;margin-bottom:32px}
+  .btn-p{padding:14px 28px;font-size:.88rem}
+  .btn-s{padding:14px 24px;font-size:.88rem}
+  .sbi{padding:0;grid-template-columns:repeat(2,1fr)}
+  .si{padding:20px 14px}
+  .sn{font-size:1.55rem}
+  .fh,.ph,.testimonials-header{margin-bottom:48px}
+  .stitle{font-size:clamp(1.4rem,5vw,1.9rem)}
+  .hw{gap:36px;margin-top:44px}
+  .hn{width:64px;height:64px;font-size:1.1rem}
+  .di{padding:0 20px;gap:36px}
+  .tbody{min-height:260px;padding:20px;font-size:.8rem}
+  .dtags{gap:8px}
+  .dtag{font-size:.74rem;padding:7px 13px}
+  .pg{gap:14px}
+  .pc{padding:30px 22px}
+  .pprice{font-size:2.8rem}
+  .th{padding:0 20px}
+  .faqin{padding:0 20px}
+  .ctab{padding:80px 0}
+  .ctabin{padding:0 20px}
+  .ctab h2{font-size:clamp(1.7rem,6vw,2.4rem)}
+  .fi{padding:0 20px;grid-template-columns:1fr 1fr;gap:32px}
+  .fbot{padding:20px 20px 0;flex-direction:column;gap:14px;text-align:center}
+  .fsoc{justify-content:center}
+}
+
+/* SMALL PHONES ≤480px */
+@media(max-width:480px){
+  .hi{padding:90px 16px 50px}
+  .si2{padding:0 16px}
+  .sbi{grid-template-columns:1fr 1fr}
+  .hbtns{flex-direction:column;gap:10px;align-items:stretch}
+  .btn-p,.btn-s{text-align:center;justify-content:center}
+  .fg{gap:14px}
+  .fc{padding:26px 20px}
+  .pprice{font-size:2.4rem}
+  .fi{grid-template-columns:1fr;gap:24px}
+  .faqin{padding:0 16px}
+  .pg{padding:0 16px}
+  .th{padding:0 16px}
+  .ctabin{padding:0 16px}
+  .di{padding:0 16px}
+}
+</style>
+</head>
+<body>
+
+<!-- CURSOR -->
+<div id="cr"></div>
+<div id="cd"></div>
+
+<!-- PRELOADER -->
+<div id="preloader">
+  <div class="pl-logo">JARVIS</div>
+  <div class="pl-bar-wrap"><div class="pl-bar"></div></div>
+</div>
+
+<!-- NAVIGATION -->
+<nav id="nav">
+  <a href="#" class="nl">JARVIS</a>
+  <ul class="nlinks">
+    <li><a href="#features">Features</a></li>
+    <li><a href="#demo">Demo</a></li>
+    <li><a href="#pricing">Pricing</a></li>
+    <li><a href="#faq">FAQ</a></li>
+    <li><a href="dashboard.html">Dashboard</a></li>
+  </ul>
+  <a href="#pricing" class="ncta">Get Started</a>
+  <button class="hbg" id="hbg" aria-label="Menu"><span></span><span></span><span></span></button>
+</nav>
+
+<!-- HERO -->
+<section id="hero">
+  <canvas id="pc"></canvas>
+  <div class="hgrid"></div>
+  <div class="hscan"></div>
+  <div class="hi">
+    <div class="hleft">
+      <div class="hbadge"><span class="dot"></span>Powered by Claude AI</div>
+      <h1 class="ht">Your Windows.<br>Now <span class="gt">Intelligent.</span></h1>
+      <p class="hsub">JARVIS is the AI-powered voice assistant that controls your entire Windows experience through natural language — open apps, monitor your system, and automate tasks hands-free.</p>
+      <div class="hbtns">
+        <a href="#pricing" class="btn-p"><span>Get JARVIS Now</span><i class="fas fa-arrow-right"></i></a>
+        <a href="#demo" class="btn-s"><i class="fas fa-play"></i><span>See It In Action</span></a>
+      </div>
+    </div>
+    <div class="hv">
+      <div class="orb">
+        <div class="ring r1"><div class="rdot"></div></div>
+        <div class="ring r2"><div class="rdot"></div></div>
+        <div class="ring r3"><div class="rdot"></div></div>
+        <div class="os"></div>
+        <div class="fp fp1"><i class="fas fa-microphone-alt"></i>Voice Active</div>
+        <div class="fp fp2"><i class="fas fa-bolt"></i>0.3s Response</div>
+        <div class="fp fp3"><i class="fas fa-lock"></i>Privacy First</div>
+      </div>
+    </div>
+  </div>
+  <div class="scroll-ind"><div class="sl"></div><span>Scroll to explore</span></div>
+</section>
+
+<!-- STATS BAR -->
+<div class="sb">
+  <div class="sbi">
+    <div class="si"><span class="sn" data-count="4800">0</span><span class="sl2">Active Users</span></div>
+    <div class="si"><span class="sn" data-count="99" data-suf="%">0%</span><span class="sl2">Voice Accuracy</span></div>
+    <div class="si"><span class="sn" data-count="50" data-suf="K+">0K+</span><span class="sl2">Commands Daily</span></div>
+    <div class="si"><span class="sn" data-count="40" data-suf="+">0+</span><span class="sl2">Countries</span></div>
+  </div>
+</div>
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="si2">
+    <div class="fh rev">
+      <span class="slabel">Capabilities</span>
+      <h2 class="stitle">Everything You Need to <span class="gt">Take Control</span></h2>
+      <p class="ssub">From voice commands to real-time system monitoring, JARVIS gives you complete command over your Windows experience.</p>
+    </div>
+    <div class="fg">
+      <div class="fc rev">
+        <div class="fiw"><i class="fas fa-microphone-alt"></i></div>
+        <h3 class="ftitle">Wake Word Detection</h3>
+        <p class="fdesc">Just say "Hey Jarvis" and it's listening. Advanced dynamic silence detection activates instantly with zero false positives.</p>
+      </div>
+      <div class="fc rev rd1">
+        <div class="fiw"><i class="fas fa-brain"></i></div>
+        <h3 class="ftitle">Claude AI Brain</h3>
+        <p class="fdesc">Powered by Claude Opus — the most capable AI available. Understands complex, multi-step commands with full context awareness.</p>
+      </div>
+      <div class="fc rev rd2">
+        <div class="fiw"><i class="fas fa-chart-line"></i></div>
+        <h3 class="ftitle">System Monitoring</h3>
+        <p class="fdesc">Real-time CPU, RAM, and disk stats on demand. Know exactly what's running and consuming resources — instantly.</p>
+      </div>
+      <div class="fc rev">
+        <div class="fiw"><i class="fas fa-rocket"></i></div>
+        <h3 class="ftitle">App Launcher</h3>
+        <p class="fdesc">Open Discord, Spotify, Steam, VS Code, or any installed app with a single voice command. Smart web fallbacks included.</p>
+      </div>
+      <div class="fc rev rd1">
+        <div class="fiw"><i class="fas fa-play-circle"></i></div>
+        <h3 class="ftitle">Entertainment Control</h3>
+        <p class="fdesc">Play YouTube videos or Twitch streams by name. Your entertainment, hands-free — no keyboard required.</p>
+      </div>
+      <div class="fc rev rd2">
+        <div class="fiw"><i class="fas fa-shield-alt"></i></div>
+        <h3 class="ftitle">Local Voice Processing</h3>
+        <p class="fdesc">Faster-Whisper runs entirely on-device. Your voice never leaves your machine. Privacy-first by design.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section id="how">
+  <div class="si2">
+    <div style="text-align:center;margin-bottom:0" class="rev">
+      <span class="slabel">Process</span>
+      <h2 class="stitle">How <span class="gt">JARVIS</span> Works</h2>
+      <p class="ssub" style="margin:0 auto">From wake word to action in under a second.</p>
+    </div>
+    <div class="hw">
+      <div class="hs rev">
+        <div class="hn">01</div>
+        <h3 class="htitle">You Speak</h3>
+        <p class="hdesc">Say "Hey Jarvis" to activate. Local Whisper AI transcribes your voice with 99% accuracy — entirely on your machine.</p>
+      </div>
+      <div class="hs rev rd1">
+        <div class="hn">02</div>
+        <h3 class="htitle">AI Processes</h3>
+        <p class="hdesc">Claude Opus analyzes your command, determines intent, and selects the right tool — all in milliseconds with full context.</p>
+      </div>
+      <div class="hs rev rd2">
+        <div class="hn">03</div>
+        <h3 class="htitle">Action Taken</h3>
+        <p class="hdesc">JARVIS executes the action and responds with a natural voice reply. Your request fulfilled before you finish your thought.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- DEMO TERMINAL -->
+<section id="demo">
+  <div class="di">
+    <div class="dt rev">
+      <div class="tb">
+        <div class="td"></div><div class="td"></div><div class="td"></div>
+        <span class="tt">JARVIS — Voice Assistant v2.1</span>
+      </div>
+      <div class="tbody" id="tbody"></div>
+    </div>
+    <div class="rev rd1">
+      <span class="slabel">Live Demo</span>
+      <h2 class="stitle">See <span class="gt">JARVIS</span> in Action</h2>
+      <p class="ssub">Natural language — no syntax to memorize. Just talk the way you think.</p>
+      <div class="dtags" id="dtags"></div>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section id="pricing">
+  <div class="si2">
+    <div class="ph rev">
+      <span class="slabel">Pricing</span>
+      <h2 class="stitle">Simple, <span class="gt">Transparent</span> Pricing</h2>
+      <p class="ssub">No hidden fees. No surprises. Cancel anytime.</p>
+    </div>
+    <div class="pg">
+      <div class="pc rev">
+        <div class="pname">Starter</div>
+        <div class="pprice"><sup>$</sup>7</div>
+        <div class="pper">per month</div>
+        <ul class="pfeats">
+          <li><i class="fas fa-check"></i>Text mode assistant</li>
+          <li><i class="fas fa-check"></i>App launching</li>
+          <li><i class="fas fa-check"></i>System monitoring</li>
+          <li><i class="fas fa-check"></i>Basic web browsing</li>
+          <li class="off"><i class="fas fa-times"></i>Voice mode</li>
+          <li class="off"><i class="fas fa-times"></i>Priority support</li>
+        </ul>
+        <a href="#" class="pbtn">Get Started</a>
+      </div>
+      <div class="pc pop rev rd1">
+        <span class="pbadge">Most Popular</span>
+        <div class="pname">Pro</div>
+        <div class="pprice"><sup>$</sup>15</div>
+        <div class="pper">per month</div>
+        <ul class="pfeats">
+          <li><i class="fas fa-check"></i>Everything in Starter</li>
+          <li><i class="fas fa-check"></i>Full voice control</li>
+          <li><i class="fas fa-check"></i>Wake word detection</li>
+          <li><i class="fas fa-check"></i>YouTube &amp; Twitch control</li>
+          <li><i class="fas fa-check"></i>Priority support</li>
+          <li class="off"><i class="fas fa-times"></i>Lifetime updates</li>
+        </ul>
+        <a href="#" class="pbtn">Get Pro</a>
+      </div>
+      <div class="pc rev rd2">
+        <div class="pname">Lifetime</div>
+        <div class="pprice"><sup>$</sup>129</div>
+        <div class="pper">one-time payment</div>
+        <ul class="pfeats">
+          <li><i class="fas fa-check"></i>Everything in Pro</li>
+          <li><i class="fas fa-check"></i>All future updates</li>
+          <li><i class="fas fa-check"></i>VIP support channel</li>
+          <li><i class="fas fa-check"></i>Beta feature access</li>
+          <li><i class="fas fa-check"></i>Setup assistance</li>
+          <li><i class="fas fa-check"></i>License forever</li>
+        </ul>
+        <a href="#" class="pbtn">Get Lifetime</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TESTIMONIALS -->
+<section id="testimonials">
+  <div class="th rev">
+    <span class="slabel">Testimonials</span>
+    <h2 class="stitle">Loved by <span class="gt">Thousands</span></h2>
+  </div>
+  <div style="overflow:hidden;padding:40px 0">
+    <div class="ttrack" id="ttrack"></div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq">
+  <div class="faqin">
+    <div class="faqh rev">
+      <span class="slabel">FAQ</span>
+      <h2 class="stitle">Frequently Asked <span class="gt">Questions</span></h2>
+    </div>
+    <div id="faqlist"></div>
+  </div>
+</section>
+
+<!-- CTA -->
+<div class="ctab">
+  <div class="ctab-line"></div>
+  <div class="ctabin">
+    <h2>Ready to Meet <span class="gt">JARVIS?</span></h2>
+    <p>Join thousands who've upgraded their Windows experience with the world's most intelligent AI assistant.</p>
+    <div class="hbtns">
+      <a href="#pricing" class="btn-p"><span>Start Today</span><i class="fas fa-arrow-right"></i></a>
+      <a href="#faq" class="btn-s"><i class="fas fa-question-circle"></i><span>Learn More</span></a>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div class="fi">
+    <div class="fbrand">
+      <span class="nl" style="display:block">JARVIS</span>
+      <p>Your AI-powered Windows assistant, built on Claude. Control your PC with voice and natural language.</p>
+    </div>
+    <div class="fcol">
+      <h4>Product</h4>
+      <ul>
+        <li><a href="#features">Features</a></li>
+        <li><a href="#pricing">Pricing</a></li>
+        <li><a href="#demo">Demo</a></li>
+        <li><a href="dashboard.html">Dashboard</a></li>
+      </ul>
+    </div>
+    <div class="fcol">
+      <h4>Support</h4>
+      <ul>
+        <li><a href="#faq">FAQ</a></li>
+        <li><a href="#">Documentation</a></li>
+        <li><a href="#">Discord</a></li>
+        <li><a href="#">Contact</a></li>
+      </ul>
+    </div>
+    <div class="fcol">
+      <h4>Legal</h4>
+      <ul>
+        <li><a href="#">Privacy Policy</a></li>
+        <li><a href="#">Terms of Service</a></li>
+        <li><a href="#">Refund Policy</a></li>
+        <li><a href="#">License</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="fbot">
+    <span>&copy; 2026 JARVIS AI. All rights reserved.</span>
+    <div class="fsoc">
+      <a href="#"><i class="fab fa-github"></i></a>
+      <a href="#"><i class="fab fa-twitter"></i></a>
+      <a href="#"><i class="fab fa-discord"></i></a>
+      <a href="#"><i class="fab fa-youtube"></i></a>
+    </div>
+    <span>Built with Claude AI</span>
+  </div>
+</footer>
+
+<script>
+// PRELOADER
+window.addEventListener('load',()=>{
+  setTimeout(()=>{
+    const p=document.getElementById('preloader');
+    p.classList.add('done');
+    setTimeout(()=>p.remove(),700);
+  },1900);
+});
+
+// CURSOR
+const cr=document.getElementById('cr'),cd=document.getElementById('cd');
+let mx=0,my=0,rx=0,ry=0;
+document.addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY;});
+(function animC(){rx+=(mx-rx)*.1;ry+=(my-ry)*.1;cr.style.left=rx+'px';cr.style.top=ry+'px';cd.style.left=mx+'px';cd.style.top=my+'px';requestAnimationFrame(animC)})();
+document.querySelectorAll('a,button,.faqq,.dtag,.pc').forEach(el=>{
+  el.addEventListener('mouseenter',()=>cr.classList.add('h'));
+  el.addEventListener('mouseleave',()=>cr.classList.remove('h'));
+});
+
+// NAVBAR SCROLL
+window.addEventListener('scroll',()=>document.getElementById('nav').classList.toggle('sc',scrollY>50));
+
+// PARTICLE CANVAS
+(()=>{
+  const c=document.getElementById('pc'),ctx=c.getContext('2d');
+  let W=c.width=innerWidth,H=c.height=innerHeight;
+  window.addEventListener('resize',()=>{W=c.width=innerWidth;H=c.height=innerHeight;});
+  const pts=Array.from({length:75},()=>({x:Math.random()*W,y:Math.random()*H,r:Math.random()*1.2+.4,vx:(Math.random()-.5)*.28,vy:(Math.random()-.5)*.28,a:Math.random()*.55+.2}));
+  const draw=()=>{
+    ctx.clearRect(0,0,W,H);
+    for(let i=0;i<pts.length;i++){
+      for(let j=i+1;j<pts.length;j++){
+        const dx=pts[i].x-pts[j].x,dy=pts[i].y-pts[j].y,d=Math.sqrt(dx*dx+dy*dy);
+        if(d<145){ctx.beginPath();ctx.moveTo(pts[i].x,pts[i].y);ctx.lineTo(pts[j].x,pts[j].y);ctx.strokeStyle=`rgba(255,31,31,${(1-d/145)*.12})`;ctx.lineWidth=.6;ctx.stroke();}
+      }
+    }
+    pts.forEach(p=>{ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fillStyle=`rgba(255,31,31,${p.a})`;ctx.fill();p.x+=p.vx;p.y+=p.vy;if(p.x<0||p.x>W)p.vx*=-1;if(p.y<0||p.y>H)p.vy*=-1;});
+    requestAnimationFrame(draw);
+  };
+  draw();
+})();
+
+// COUNTERS
+function animCount(el,target,suf=''){
+  let s=0;
+  const dur=2000;
+  const step=ts=>{if(!s)s=ts;const p=Math.min((ts-s)/dur,1);const e=p<.5?2*p*p:-1+(4-2*p)*p;const v=Math.floor(e*target);el.textContent=(v>=1000?(v/1000).toFixed(0)+'K':v)+suf;if(p<1)requestAnimationFrame(step);};
+  requestAnimationFrame(step);
+}
+document.querySelectorAll('.sn[data-count]').forEach(el=>{
+  const obs=new IntersectionObserver(entries=>{if(entries[0].isIntersecting){animCount(el,+el.dataset.count,el.dataset.suf||'');obs.unobserve(el);}},{threshold:.5});
+  obs.observe(el);
+});
+
+// SCROLL REVEAL
+const revEls=document.querySelectorAll('.rev');
+const revObs=new IntersectionObserver(entries=>{entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('vis');revObs.unobserve(e.target);}});},{threshold:.1});
+revEls.forEach(el=>revObs.observe(el));
+
+// FAQ
+const faqData=[
+  {q:'Does JARVIS work on any Windows PC?',a:'JARVIS runs on Windows 10 and Windows 11. You need Python 3.8+ and a microphone for voice mode. Setup takes under 5 minutes.'},
+  {q:'Is my voice data private and secure?',a:'Yes. Voice-to-text transcription runs locally using Faster-Whisper on your machine. Your voice never leaves your computer — only the transcribed text reaches Claude AI.'},
+  {q:'Do I need internet to use JARVIS?',a:'Internet is required for AI command processing via Claude API. Speech recognition works locally. Most commands complete in under 1 second.'},
+  {q:'Can I customize which apps JARVIS can open?',a:'Yes! JARVIS has a pre-configured list of common applications and can be extended easily. Pro and Lifetime users get detailed customization guides.'},
+  {q:"What's included in the Lifetime license?",a:'Lifetime license includes permanent access to JARVIS, all future feature updates, VIP support, early beta access, and personal setup assistance — one payment, forever.'},
+];
+const faqList=document.getElementById('faqlist');
+faqData.forEach((item,i)=>{
+  const div=document.createElement('div');div.className='faqitem rev'+(i>0?' rd'+Math.min(i,3):'');
+  div.innerHTML=`<div class="faqq"><span>${item.q}</span><i class="fas fa-plus icon"></i></div><div class="faqa"><p class="faqai">${item.a}</p></div>`;
+  div.querySelector('.faqq').addEventListener('click',()=>{const op=div.classList.contains('op');document.querySelectorAll('.faqitem').forEach(f=>f.classList.remove('op'));if(!op)div.classList.add('op');});
+  faqList.appendChild(div);
+  revObs.observe(div);
+});
+
+// TERMINAL DEMO
+const demos={
+  'Hey Jarvis, open Spotify':[{d:350,t:'r',s:'Got it! Opening Spotify for you...'},{d:800,t:'a',s:'▸ open_app("Spotify")'},{d:1300,t:'r',s:'Spotify is now open. Enjoy your music!'}],
+  "What's my RAM usage?":[{d:300,t:'a',s:'▸ get_system_stats()'},{d:800,t:'r',s:'RAM: 8.2 GB / 16 GB (51%) used'},{d:1100,t:'r',s:'CPU: 12% · Disk: 234 GB free'}],
+  'Play Lofi Hip Hop on YouTube':[{d:300,t:'r',s:'Searching YouTube for Lofi Hip Hop...'},{d:750,t:'a',s:'▸ play_youtube("Lofi Hip Hop")'},{d:1200,t:'r',s:'Playing now in your browser!'}],
+  'Close Discord':[{d:300,t:'a',s:'▸ close_window("Discord")'},{d:700,t:'r',s:'Discord has been closed.'}],
+  'Top CPU processes?':[{d:300,t:'a',s:'▸ get_running_processes(sort="cpu")'},{d:800,t:'r',s:'1. chrome.exe  —  18.2% CPU · 312 MB'},{d:1050,t:'r',s:'2. discord.exe —  4.1% CPU · 180 MB'},{d:1300,t:'r',s:'3. code.exe    —  2.8% CPU · 420 MB'}],
+  'Open twitch.tv/shroud':[{d:300,t:'a',s:"▸ open_stream('shroud')"},{d:700,t:'r',s:"Opening shroud's stream. Let's go!"}],
+};
+const dkeys=Object.keys(demos);
+let didx=0;
+
+const dtags=document.getElementById('dtags');
+dkeys.forEach(k=>{
+  const t=document.createElement('div');t.className='dtag';t.dataset.k=k;t.textContent=k.replace('Hey Jarvis, ','').replace("What's my ","Check ").replace("?","");
+  t.addEventListener('click',()=>{document.querySelectorAll('.dtag').forEach(x=>x.classList.remove('act'));t.classList.add('act');runDemo(k);});
+  dtags.appendChild(t);
+});
+
+function runDemo(cmd){
+  const body=document.getElementById('tbody');
+  const base=[{t:'a',s:'System initialized. Claude Opus ready.'},{t:'r',s:'Listening for "Hey Jarvis"...'}];
+  body.innerHTML=base.map(l=>`<div class="tl"><span class="tp">JARVIS › </span><span class="${l.t==='a'?'ta':'tr'}">${l.s}</span></div>`).join('')+'<div class="tl">&nbsp;</div>';
+  const cmdDiv=document.createElement('div');cmdDiv.className='tl';cmdDiv.innerHTML=`<span class="tp">You › </span><span class="tu" id="ttyp"></span><span class="tcur"></span>`;
+  body.appendChild(cmdDiv);
+  let i=0;
+  const ti=setInterval(()=>{const el=document.getElementById('ttyp');if(el&&i<cmd.length)el.textContent+=cmd[i++];else clearInterval(ti);},38);
+  const rs=demos[cmd];rs.forEach(r=>{setTimeout(()=>{const l=document.createElement('div');l.className='tl';l.innerHTML=`<span class="tp">JARVIS › </span><span class="${r.t==='a'?'ta':'tr'}">${r.s}</span>`;body.appendChild(l);body.scrollTop=body.scrollHeight;},cmd.length*38+r.d);});
+}
+
+function nextDemo(){
+  document.querySelectorAll('.dtag').forEach((t,i)=>t.classList.toggle('act',i===didx));
+  runDemo(dkeys[didx]);didx=(didx+1)%dkeys.length;
+}
+nextDemo();
+setInterval(nextDemo,5500);
+
+// HAMBURGER MENU
+const hbg=document.getElementById('hbg'),nlinks=document.querySelector('.nlinks');
+hbg.addEventListener('click',()=>{
+  hbg.classList.toggle('op');nlinks.classList.toggle('mob-open');
+  document.body.style.overflow=nlinks.classList.contains('mob-open')?'hidden':'';
+});
+nlinks.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>{
+  hbg.classList.remove('op');nlinks.classList.remove('mob-open');document.body.style.overflow='';
+}));
+
+// TESTIMONIALS
+const tdata=[
+  {n:'Alex R.',r:'Software Engineer',t:'JARVIS completely changed how I work. I control my entire dev environment by voice now. It\'s like having a superpower.',s:5},
+  {n:'Jordan M.',r:'Content Creator',t:'Opening streams, playing music, checking CPU — all without touching my mouse. My workflow is 10x faster.',s:5},
+  {n:'Sam K.',r:'PC Gamer',t:'The Pro plan is incredible. Voice commands for apps while gaming with zero interruption. Absolutely worth every dollar.',s:5},
+  {n:'Taylor W.',r:'Data Analyst',t:'The system monitoring alone is worth the price. Real-time stats by voice — I never knew how much I needed this.',s:5},
+  {n:'Chris P.',r:'UX Designer',t:'Got the Lifetime deal on day one. Claude AI understands me perfectly — complex commands, natural phrasing, everything.',s:5},
+  {n:'Morgan L.',r:'IT Professional',t:'Setup took 4 minutes. Within an hour it was handling everything. The privacy-first approach won me over immediately.',s:5},
+];
+const track=document.getElementById('ttrack');
+const all=[...tdata,...tdata];
+track.innerHTML=all.map(t=>`<div class="tcard"><div class="tstars">${'★'.repeat(t.s)}</div><p class="ttext">"${t.t}"</p><div class="tauthor"><div class="tav">${t.n[0]}</div><div><div class="tname">${t.n}</div><div class="trole">${t.r}</div></div></div></div>`).join('');
+</script>
+</body>
+</html>
